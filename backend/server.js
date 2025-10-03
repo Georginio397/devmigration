@@ -226,7 +226,7 @@ async function main() {
   console.log("🔴 Monitorizez migrates la fiecare 15 minute...");
   await checkMigrates(col);
 
-  const interval = 15 * 60 * 1000;
+  const interval = 60 * 60 * 1000;
   setInterval(async () => {
     await checkMigrates(col);
     nextFetchTime = Date.now() + interval;
