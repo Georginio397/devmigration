@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import "./App.css";
 
 export default function App() {
-  const API_URL = "https://devmigbackend-production.up.railway.app";
+  const API_URL = "https://devmigbackend-production-61a0.up.railway.app";
 
   const [activeTab, setActiveTab] = useState("migrates");
   const [tokens, setTokens] = useState([]);
