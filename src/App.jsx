@@ -15,6 +15,12 @@ export default function App() {
   const [scanning, setScanning] = useState(false);
   const [scanMsg, setScanMsg] = useState("");
 
+  // ==== Monitoring ====
+  const [wallets, setWallets] = useState([]);
+  const [newWallet, setNewWallet] = useState("");
+  const [events, setEvents] = useState([]);
+  const [loadingWallets, setLoadingWallets] = useState(false);
+
   // ====== API loaders ======
   const loadTokens = async () => {
     const res = await fetch(`${API_URL}/migrated-tokens`);
@@ -47,6 +53,65 @@ export default function App() {
       }
     } catch (err) {
       console.error("❌ Failed to fetch /next-fetch:", err.message);
+    }
+  };
+
+  // ===== Monitoring load functions =====
+  const loadWallets = async () => {
+    try {
+      setLoadingWallets(true);
+      const res = await fetch(`${API_URL}/monitored-wallets`);
+      const data = await res.json();
+      setWallets(data);
+    } catch (err) {
+      console.error("❌ Failed to load wallets:", err.message);
+    } finally {
+      setLoadingWallets(false);
+    }
+  };
+
+  const addWallet = async () => {
+    if (!newWallet.trim()) return;
+    try {
+      const res = await fetch(`${API_URL}/monitored-wallets`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ wallet: newWallet.trim() }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        alert("❌ " + (err.error || "Error adding wallet"));
+        return;
+      }
+      setNewWallet("");
+      loadWallets();
+    } catch (err) {
+      console.error("❌ Add wallet error:", err.message);
+    }
+  };
+
+  const deleteWallet = async (wallet) => {
+    if (!window.confirm(`Ștergi walletul ${wallet}?`)) return;
+    try {
+      const res = await fetch(`${API_URL}/monitored-wallets/${wallet}`, { method: "DELETE" });
+      if (!res.ok) {
+        const err = await res.json();
+        alert("❌ " + (err.error || "Error deleting wallet"));
+        return;
+      }
+      loadWallets();
+    } catch (err) {
+      console.error("❌ Delete wallet error:", err.message);
+    }
+  };
+
+  const loadEvents = async () => {
+    try {
+      const res = await fetch(`${API_URL}/monitor-events`);
+      const data = await res.json();
+      setEvents(data);
+    } catch (err) {
+      console.error("❌ Load events error:", err.message);
     }
   };
 
@@ -130,6 +195,8 @@ export default function App() {
     loadTokens();
     loadGoodDevs();
     loadScanHistory();
+    loadWallets();
+    loadEvents();
     const interval = setInterval(loadNextFetch, 1000);
     return () => clearInterval(interval);
   }, []);
@@ -141,50 +208,33 @@ export default function App() {
 
       {/* Tabs */}
       <div style={{ marginBottom: "20px" }}>
-        <button
-          className={activeTab === "migrates" ? "active" : ""}
-          onClick={() => setActiveTab("migrates")}
-        >
+        <button className={activeTab === "migrates" ? "active" : ""} onClick={() => setActiveTab("migrates")}>
           Migrări
         </button>
-        <button
-          className={activeTab === "goodDevs" ? "active" : ""}
-          onClick={() => setActiveTab("goodDevs")}
-        >
+        <button className={activeTab === "goodDevs" ? "active" : ""} onClick={() => setActiveTab("goodDevs")}>
           Good Devs
+        </button>
+        <button className={activeTab === "monitoring" ? "active" : ""} onClick={() => setActiveTab("monitoring")}>
+          Monitoring
         </button>
       </div>
 
-      <p>
-        ⏳ Next fetch in: <b>{nextFetch}</b>
-      </p>
-      <p>
-        🕒 Last updated: <b>{lastUpdated}</b>
-      </p>
+      <p>⏳ Next fetch in: <b>{nextFetch}</b></p>
+      <p>🕒 Last updated: <b>{lastUpdated}</b></p>
 
       {/* ===== MIGRATES TAB ===== */}
       {activeTab === "migrates" && (
         <div>
           <h2>Migrated Tokens</h2>
           <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Mint</th>
-                <th>Creator</th>
-                <th>Migrate Time</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tokens.map((t, i) => (
-                <tr key={i}>
-                  <td>{t.mint}</td>
-                  <td>{t.creator || "?"}</td>
-                  <td>{t.migrateTime}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+            <table>
+              <thead><tr><th>Mint</th><th>Creator</th><th>Migrate Time</th></tr></thead>
+              <tbody>
+                {tokens.map((t, i) => (
+                  <tr key={i}><td>{t.mint}</td><td>{t.creator || "?"}</td><td>{t.migrateTime}</td></tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
@@ -192,143 +242,81 @@ export default function App() {
       {/* ===== GOOD DEVS TAB ===== */}
       {activeTab === "goodDevs" && (
         <div>
-          {/* Controls */}
-          <div
-            style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}
-          >
-            <button onClick={() => scanGoodDevs(false)} disabled={scanning}>
-              Scan new
-            </button>
-         
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
+            <button onClick={() => scanGoodDevs(false)} disabled={scanning}>Scan new</button>
             <span style={{ color: "#a8a8a8" }}>{scanMsg}</span>
           </div>
-
-          {/* Saved Good Devs */}
           <h2>Good Devs (Saved)</h2>
           <table>
-            <thead>
-              <tr>
-                <th>Creator</th>
-                <th>Migrated</th>
-                <th>Checked At</th>
-                <th>Pool</th>
-                <th>Action</th>
-              </tr>
-            </thead>
+            <thead><tr><th>Creator</th><th>Migrated</th><th>Checked At</th><th>Pool</th><th>Action</th></tr></thead>
             <tbody>
               {goodDevs.map((d, i) => (
                 <tr key={i}>
                   <td>{d.creator}</td>
                   <td>{d.migrated}</td>
                   <td>{new Date(d.checkedAt).toLocaleString()}</td>
-                  <td>
-                    {d.pool ? (
-                      <a
-                        href={`https://axiom.trade/meme/${d.pool}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        {d.pool}
-                      </a>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td>
-                    <button
-                      style={{ background: "red", color: "white", cursor: "pointer" }}
-                      onClick={() => deleteGoodDev(d.creator)}
-                    >
-                      Delete
-                    </button>
-                  </td>
+                  <td>{d.pool ? <a href={`https://axiom.trade/meme/${d.pool}`} target="_blank" rel="noreferrer">{d.pool}</a> : "—"}</td>
+                  <td><button style={{ background: "red", color: "white" }} onClick={() => deleteGoodDev(d.creator)}>Delete</button></td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      )}
 
-          {/* Live Results */}
-          <h2 style={{ marginTop: "25px" }}>Scan Results (Live)</h2>
-          <table className="scan-results">
-            <thead>
-              <tr>
-                <th>Creator</th>
-                <th>Migrated</th>
-                <th>Pool</th>
-                <th>Checked At</th>
-              </tr>
-            </thead>
+      {/* ===== MONITORING TAB ===== */}
+      {activeTab === "monitoring" && (
+        <div>
+          <h2>Wallet Monitoring</h2>
+
+          {/* Add wallet */}
+          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+            <input
+              type="text"
+              placeholder="Adaugă wallet..."
+              value={newWallet}
+              onChange={(e) => setNewWallet(e.target.value)}
+              style={{ flex: 1, padding: 8 }}
+            />
+            <button onClick={addWallet}>Add</button>
+            <button onClick={loadWallets}>Refresh</button>
+          </div>
+
+          {/* Wallet list */}
+          <table>
+            <thead><tr><th>Wallet</th><th>Added</th><th>Action</th></tr></thead>
             <tbody>
-              {scanResultsLive.length > 0 ? (
-                scanResultsLive.map((r, i) => (
-                  <tr key={i}>
-                    <td>{r.creator}</td>
-                    <td>{r.migrated}</td>
-                    <td>
-                      {r.pool ? (
-                        <a
-                          href={`https://axiom.trade/meme/${r.pool}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          {r.pool}
-                        </a>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td>{new Date(r.checkedAt).toLocaleString()}</td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="4">No live results yet — press "Scan new"</td>
+              {wallets.length > 0 ? wallets.map((w, i) => (
+                <tr key={i}>
+                  <td>{w.wallet}</td>
+                  <td>{w.insertedAt ? new Date(w.insertedAt).toLocaleString() : "—"}</td>
+                  <td><button style={{ background: "red", color: "white" }} onClick={() => deleteWallet(w.wallet)}>Delete</button></td>
                 </tr>
+              )) : (
+                <tr><td colSpan="3">{loadingWallets ? "Loading..." : "No wallets added"}</td></tr>
               )}
             </tbody>
           </table>
 
-          {/* History */}
-          <h2 style={{ marginTop: "25px" }}>Scan Results (History)</h2>
+          {/* Events */}
+          <h3 style={{ marginTop: 25 }}>Last Events</h3>
           <div className="table-scroll">
-          <table className="scan-results">
-            <thead>
-              <tr>
-                <th>Creator</th>
-                <th>Migrated</th>
-                <th>Pool</th>
-                <th>Checked At</th>
-              </tr>
-            </thead>
-            <tbody>
-              {scanResultsHistory.length > 0 ? (
-                scanResultsHistory.map((r, i) => (
+            <table className="scan-results">
+              <thead><tr><th>Wallet</th><th>Mint</th><th>Pool</th><th>Tx</th><th>Time</th></tr></thead>
+              <tbody>
+                {events.length > 0 ? events.map((e, i) => (
                   <tr key={i}>
-                    <td>{r.creator}</td>
-                    <td>{r.migrated}</td>
-                    <td>
-                      {r.pool ? (
-                        <a
-                          href={`https://axiom.trade/meme/${r.pool}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          {r.pool}
-                        </a>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td>{new Date(r.checkedAt).toLocaleString()}</td>
+                    <td>{e.wallet}</td>
+                    <td>{e.mint}</td>
+                    <td>{e.pool}</td>
+                    <td><a href={`https://explorer.solana.com/tx/${e.txSig}`} target="_blank" rel="noreferrer">view</a></td>
+                    <td>{new Date(e.time).toLocaleString()}</td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="4">No history yet</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                )) : (
+                  <tr><td colSpan="5">No events logged yet</td></tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
